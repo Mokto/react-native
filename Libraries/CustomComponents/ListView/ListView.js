@@ -31,6 +31,7 @@ var React = require('React');
 var RCTUIManager = require('NativeModules').UIManager;
 var RCTScrollViewManager = require('NativeModules').ScrollViewManager;
 var ScrollView = require('ScrollView');
+var View = require('View');
 var ScrollResponder = require('ScrollResponder');
 var StaticRenderer = require('StaticRenderer');
 var TimerMixin = require('react-timer-mixin');
@@ -175,6 +176,13 @@ var ListView = React.createClass({
      */
     renderSectionHeader: PropTypes.func,
     /**
+     * (sectionID) => renderable
+     *
+     * If provided, wraps section rows in a custom React Element
+     * Default : ()=><View />
+     */
+    renderSection: PropTypes.func,
+    /**
      * (props) => renderable
      *
      * A function that returns the scrollable component in which the list rows
@@ -241,6 +249,7 @@ var ListView = React.createClass({
       renderScrollComponent: props => <ScrollView {...props} />,
       scrollRenderAheadDistance: DEFAULT_SCROLL_RENDER_AHEAD,
       onEndReachedThreshold: DEFAULT_END_REACHED_THRESHOLD,
+      renderSection: ()=> <View />
     };
   },
 
@@ -336,6 +345,8 @@ var ListView = React.createClass({
         sectionHeaderIndices.push(totalIndex++);
       }
 
+      var countSectionLines = 0,
+          sectionComponents = [];
       for (var rowIdx = 0; rowIdx < rowIDs.length; rowIdx++) {
         var rowID = rowIDs[rowIdx];
         var comboID = sectionID + rowID;
@@ -353,8 +364,7 @@ var ListView = React.createClass({
               this.onRowHighlighted
             )}
           />;
-        bodyComponents.push(row);
-        totalIndex++;
+        sectionComponents.push(row);
 
         if (this.props.renderSeparator &&
             (rowIdx !== rowIDs.length - 1 || sectionIdx === allRowIDs.length - 1)) {
@@ -368,14 +378,26 @@ var ListView = React.createClass({
             rowID,
             adjacentRowHighlighted
           );
-          bodyComponents.push(separator);
-          totalIndex++;
+          sectionComponents.push(separator);
         }
+        countSectionLines++;
         if (++rowCount === this.state.curRenderedRowsCount) {
           break;
         }
       }
-      if (rowCount >= this.state.curRenderedRowsCount) {
+      var isEarlyBreak = rowCount >= this.state.curRenderedRowsCount;
+      if (isEarlyBreak || countSectionLines === rowIDs.length) {
+        //early break or end section
+        bodyComponents.push(
+          React.cloneElement(
+            this.props.renderSection(sectionID),
+            { key: 'section_' + sectionID },
+            sectionComponents
+          )
+        );
+        totalIndex++;
+      }
+      if (isEarlyBreak) {
         break;
       }
     }
